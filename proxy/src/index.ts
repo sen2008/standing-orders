@@ -89,11 +89,18 @@ export default {
     if (path === '/') path = `${UPSTREAM_PREFIX}/`;
     else if (!path.startsWith(UPSTREAM_PREFIX)) path = `${UPSTREAM_PREFIX}${path}`;
 
+    const isHtmlShell = path === `${UPSTREAM_PREFIX}/`;
     const upstream = await fetch(`https://${UPSTREAM_HOST}${path}${url.search}`, {
       method: request.method,
-      cf: { cacheTtl: 60 },
+      cf: { cacheTtl: isHtmlShell ? 0 : 60 },
     });
 
-    return new Response(upstream.body, upstream);
+    const response = new Response(upstream.body, upstream);
+    // The HTML shell references hashed asset filenames — if a browser (or an
+    // edge cache) holds onto a stale copy of it, it keeps loading a stale JS
+    // bundle indefinitely even after a fix ships. Assets themselves are safe
+    // to cache long-term since their filename changes with their content.
+    if (isHtmlShell) response.headers.set('Cache-Control', 'no-store');
+    return response;
   },
 };

@@ -4,9 +4,15 @@
 // Production default — override via the "API server" field for local dev
 // (that field writes to localStorage, so it's per-browser, not baked into the build).
 const DEFAULT_BASE_URL = 'https://api.standingorders.lucaswalker.net';
+// A build before this default existed may have persisted this literal value
+// (the old default) into localStorage via the "Save" button. Treat it as
+// unset rather than let it override the real default forever.
+const STALE_DEFAULTS = ['http://localhost:8787'];
 
 export function apiBaseUrl(): string {
-  return localStorage.getItem('so_api_base_url') || DEFAULT_BASE_URL;
+  const stored = localStorage.getItem('so_api_base_url');
+  if (!stored || STALE_DEFAULTS.includes(stored)) return DEFAULT_BASE_URL;
+  return stored;
 }
 
 export function setApiBaseUrl(url: string) {
