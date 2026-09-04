@@ -1,0 +1,9 @@
+name = "standing-orders-frontend-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+
+# Transparent proxy so the frontend (GitHub Pages, served under /standing-orders/)
+# is reachable at a clean custom domain. See src/index.ts.
+[[routes]]
+pattern = "standingorders.lucaswalker.net"
+custom_domain = true
