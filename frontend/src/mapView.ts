@@ -1,29 +1,60 @@
 import type { GameStateResponse } from './api';
 
-const CELL = 18;
+const CELL = 22;
 
 const TERRAIN_COLOR: Record<string, string> = {
-  plains: '#c9d97a',
-  forest: '#3f6b2f',
-  hills: '#a98953',
-  mountains: '#8a8a8a',
-  swamp: '#4a5d3a',
+  plains: '#a8b95f',
+  forest: '#39592c',
+  hills: '#8f7248',
+  mountains: '#736d72',
+  swamp: '#3f4f3a',
 };
 
-const FEATURE_COLOR: Record<string, string> = {
-  ruin: '#8e44ad',
-  dungeon: '#8e44ad',
-  monster_camp: '#e67e22',
-  dragon_lair: '#c0392b',
+const FEATURE_ICON: Record<string, string> = {
+  ruin: '🏚️',
+  dungeon: '🏛️',
+  monster_camp: '⛺',
+  dragon_lair: '🐉',
 };
 
-const KINGDOM_PALETTE = ['#2e6fdb', '#d94b4b', '#2fa86b', '#c99a2e'];
+const HERO_CLASS_ICON: Record<string, string> = {
+  Warrior: '⚔️',
+  Rogue: '🗡️',
+  Wizard: '🔮',
+  Cleric: '✟',
+};
+
+const KINGDOM_PALETTE = ['#4c8bf5', '#e0645c', '#4fb87a', '#d9a23a'];
 
 export function kingdomColor(index: number): string {
   return KINGDOM_PALETTE[index % KINGDOM_PALETTE.length];
 }
 
-export function drawMap(canvas: HTMLCanvasElement, state: GameStateResponse, selectedTile: { x: number; y: number } | null) {
+export function heroIcon(cls: string): string {
+  return HERO_CLASS_ICON[cls] ?? '⚔️';
+}
+
+export function featureIcon(feature: string): string {
+  return FEATURE_ICON[feature] ?? '❓';
+}
+
+export interface MapViewOptions {
+  selectedTile: { x: number; y: number } | null;
+  hoveredTile: { x: number; y: number } | null;
+  moveMode: boolean;
+  heroOrigin: { x: number; y: number } | null;
+}
+
+function desaturate(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const gray = (r + g + b) / 3;
+  const mix = (c: number) => Math.round(c + (gray - c) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+export function drawMap(canvas: HTMLCanvasElement, state: GameStateResponse, opts: MapViewOptions) {
   const size = state.game.mapSize;
   canvas.width = size * CELL;
   canvas.height = size * CELL;
@@ -37,110 +68,164 @@ export function drawMap(canvas: HTMLCanvasElement, state: GameStateResponse, sel
       const t = tileByKey.get(`${x},${y}`);
       const px = x * CELL;
       const py = y * CELL;
+
       if (!t || t.state === 'unseen') {
-        ctx.fillStyle = '#111';
+        ctx.fillStyle = '#0a090d';
         ctx.fillRect(px, py, CELL, CELL);
+        // Faint fog hatching so "unexplored" reads as a texture, not just void.
+        ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, py + CELL);
+        ctx.lineTo(px + CELL, py);
+        ctx.stroke();
         continue;
       }
-      const base = TERRAIN_COLOR[t.terrain ?? 'plains'] ?? '#999';
-      ctx.fillStyle = base;
-      ctx.globalAlpha = t.state === 'stale' ? 0.45 : 1;
+
+      const base = TERRAIN_COLOR[t.terrain ?? 'plains'] ?? '#777';
+      if (t.state === 'stale') {
+        ctx.fillStyle = desaturate(base, 0.65);
+        ctx.globalAlpha = 0.7;
+      } else {
+        ctx.fillStyle = base;
+        ctx.globalAlpha = 1;
+      }
       ctx.fillRect(px, py, CELL, CELL);
       ctx.globalAlpha = 1;
 
-      if (t.feature && t.feature_state === 'active') {
-        ctx.fillStyle = FEATURE_COLOR[t.feature] ?? '#fff';
-        ctx.beginPath();
-        ctx.arc(px + CELL / 2, py + CELL / 2, CELL * 0.28, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (t.feature) {
-        ctx.strokeStyle = '#666';
-        ctx.beginPath();
-        ctx.arc(px + CELL / 2, py + CELL / 2, CELL * 0.28, 0, Math.PI * 2);
-        ctx.stroke();
+      // Danger wash — a visible tile reads as more ominous the higher its danger.
+      if (t.state === 'visible' && (t.danger_level ?? 0) > 15) {
+        const a = Math.min(0.4, ((t.danger_level ?? 0) / 100) * 0.5);
+        ctx.fillStyle = `rgba(150, 30, 30, ${a})`;
+        ctx.fillRect(px, py, CELL, CELL);
+      }
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 0.5, py + 0.5, CELL - 1, CELL - 1);
+
+      if (t.feature) {
+        const active = t.feature_state === 'active';
+        ctx.globalAlpha = active ? 1 : 0.35;
+        ctx.font = `${CELL - 4}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(featureIcon(t.feature), px + CELL / 2, py + CELL / 2 + 1);
+        ctx.globalAlpha = 1;
       }
     }
   }
 
-  // Bounty targets: yellow ring.
+  // Bounty targets: a gold decree ring — "someone has offered a reward here."
   for (const b of state.bounties) {
     if (b.status !== 'Open' && b.status !== 'Claimed') continue;
     const px = b.target_tile_x * CELL;
     const py = b.target_tile_y * CELL;
-    ctx.strokeStyle = '#f1c40f';
+    ctx.strokeStyle = b.status === 'Open' ? '#e8c25f' : 'rgba(232, 194, 95, 0.4)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(px + 1, py + 1, CELL - 2, CELL - 2);
+    ctx.setLineDash(b.status === 'Open' ? [] : [3, 2]);
+    ctx.strokeRect(px + 2, py + 2, CELL - 4, CELL - 4);
+    ctx.setLineDash([]);
   }
 
-  // Threats: red X.
+  // Threats.
   for (const t of state.threats) {
+    if (t.state !== 'active') continue;
     const px = t.tile_x * CELL;
     const py = t.tile_y * CELL;
-    ctx.strokeStyle = '#e74c3c';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(px + 3, py + 3);
-    ctx.lineTo(px + CELL - 3, py + CELL - 3);
-    ctx.moveTo(px + CELL - 3, py + 3);
-    ctx.lineTo(px + 3, py + CELL - 3);
-    ctx.stroke();
+    ctx.font = `${CELL - 6}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('💀', px + CELL / 2, py + CELL / 2 + 1);
   }
 
-  // Kingdoms: capital flag, workers as dots, hero as a star.
+  // Kingdoms: capital, workers, hero. Mine = bright + glow. Rivals = muted, outline-first.
   state.kingdoms.forEach((k, i) => {
     const color = kingdomColor(i);
-    const cpx = k.capital.x * CELL;
-    const cpy = k.capital.y * CELL;
-    ctx.fillStyle = color;
+
+    // Capital: a small keep glyph on a colored disc.
+    const cpx = k.capital.x * CELL + CELL / 2;
+    const cpy = k.capital.y * CELL + CELL / 2;
     ctx.beginPath();
-    ctx.moveTo(cpx + 2, cpy + CELL - 2);
-    ctx.lineTo(cpx + 2, cpy + 2);
-    ctx.lineTo(cpx + CELL - 2, cpy + CELL / 2);
-    ctx.closePath();
+    ctx.arc(cpx, cpy, CELL * 0.42, 0, Math.PI * 2);
+    ctx.fillStyle = k.isMine ? color : `${color}55`;
     ctx.fill();
+    ctx.strokeStyle = k.isMine ? '#fff' : color;
+    ctx.lineWidth = k.isMine ? 1.5 : 1;
+    ctx.stroke();
+    ctx.font = `${CELL - 6}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏰', cpx, cpy + 1);
 
     for (const w of k.workers) {
       if (w.state === 'Dead') continue;
       const wpx = w.tile_x * CELL + CELL / 2;
       const wpy = w.tile_y * CELL + CELL / 2;
-      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(wpx, wpy, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(wpx, wpy, k.isMine ? 3.5 : 2.5, 0, Math.PI * 2);
+      if (k.isMine) {
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
     }
 
     if (k.hero && k.hero.state !== 'Dead' && k.hero.state !== 'InDungeon') {
-      drawStar(ctx, k.hero.tile_x * CELL + CELL / 2, k.hero.tile_y * CELL + CELL / 2, 6, color);
+      const hx = k.hero.tile_x * CELL + CELL / 2;
+      const hy = k.hero.tile_y * CELL + CELL / 2;
       if (k.hero.marshal_active) {
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = `${color}88`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 3]);
         ctx.beginPath();
-        ctx.arc(k.hero.tile_x * CELL + CELL / 2, k.hero.tile_y * CELL + CELL / 2, CELL * 3, 0, Math.PI * 2);
+        ctx.arc(hx, hy, CELL * 2.6, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.globalAlpha = 1;
+        ctx.setLineDash([]);
       }
+      if (k.isMine) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+      }
+      ctx.font = `${CELL - 2}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = k.isMine ? 1 : 0.75;
+      ctx.fillText(heroIcon(k.hero.class), hx, hy + 1);
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
     }
   });
 
-  if (selectedTile) {
+  // Move-mode path preview: a dashed line from the Hero to the hovered tile.
+  if (opts.moveMode && opts.heroOrigin && opts.hoveredTile) {
+    ctx.strokeStyle = '#e8c25f';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(opts.heroOrigin.x * CELL + CELL / 2, opts.heroOrigin.y * CELL + CELL / 2);
+    ctx.lineTo(opts.hoveredTile.x * CELL + CELL / 2, opts.hoveredTile.y * CELL + CELL / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (opts.hoveredTile) {
+    ctx.strokeStyle = opts.moveMode ? '#e8c25f' : 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(opts.hoveredTile.x * CELL + 1, opts.hoveredTile.y * CELL + 1, CELL - 2, CELL - 2);
+  }
+
+  if (opts.selectedTile) {
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2;
-    ctx.strokeRect(selectedTile.x * CELL + 1, selectedTile.y * CELL + 1, CELL - 2, CELL - 2);
+    ctx.strokeRect(opts.selectedTile.x * CELL + 1, opts.selectedTile.y * CELL + 1, CELL - 2, CELL - 2);
   }
-}
-
-function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fill();
 }
 
 export function canvasToTile(canvas: HTMLCanvasElement, evt: MouseEvent): { x: number; y: number } {

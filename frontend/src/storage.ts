@@ -65,3 +65,28 @@ export function listCreatedGames(): CreatedGame[] {
     return [];
   }
 }
+
+// Tracks the newest round number this browser has already been shown the
+// "while you were away" digest for, per game — so re-opening the tab doesn't
+// re-surface the same story every 10s poll, but a round that resolved since
+// your last visit does.
+const SEEN_KEY = 'so_last_seen_round';
+
+export function getLastSeenRound(gameId: string): number | null {
+  try {
+    const map = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}');
+    return typeof map[gameId] === 'number' ? map[gameId] : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setLastSeenRound(gameId: string, roundNumber: number) {
+  try {
+    const map = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}');
+    map[gameId] = roundNumber;
+    localStorage.setItem(SEEN_KEY, JSON.stringify(map));
+  } catch {
+    // localStorage unavailable — the digest just won't persist across visits, harmless.
+  }
+}
