@@ -13,6 +13,7 @@ export interface OrdersInput {
   postBounties?: { type: BountyType; targetX: number; targetY: number; targetRef?: string | null; reward: number }[];
   cancelBountyIds?: string[];
   queueBuildings?: { type: BuildingType }[];
+  cancelBuildingIds?: string[];
 }
 
 export async function applyOrders(db: D1Database, gameId: string, playerId: string, kingdomId: string, roundNumber: number, input: OrdersInput): Promise<{ errors: string[] }> {
@@ -102,6 +103,20 @@ export async function applyOrders(db: D1Database, gameId: string, playerId: stri
         build_progress_rounds_left: spec.buildRounds,
         status: 'building',
       });
+    }
+  }
+
+  if (input.cancelBuildingIds) {
+    const buildings = await repo.listBuildingsForGame(db, gameId);
+    for (const id of input.cancelBuildingIds) {
+      const building = buildings.find((b) => b.id === id);
+      if (!building || building.kingdom_id !== kingdomId || building.status === 'active') {
+        errors.push(`cannot cancel building ${id}`);
+        continue;
+      }
+      const spec = BUILDING_COSTS[building.type];
+      if (spec) kingdom.treasury += spec.cost;
+      await repo.cancelBuilding(db, id);
     }
   }
 

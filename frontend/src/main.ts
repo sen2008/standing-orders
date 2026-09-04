@@ -1,7 +1,16 @@
 import * as api from './api';
 import type { GameStateResponse } from './api';
 import { drawMap, canvasToTile, kingdomColor } from './mapView';
-import { getActiveSession, saveSession, listSessions, setActiveGameId, type SavedSession } from './storage';
+import {
+  getActiveSession,
+  saveSession,
+  listSessions,
+  setActiveGameId,
+  saveCreatedGame,
+  listCreatedGames,
+  type SavedSession,
+  type CreatedGame,
+} from './storage';
 
 const app = document.getElementById('app')!;
 
@@ -47,6 +56,7 @@ async function withErrorHandling(fn: () => Promise<void>) {
 function renderSetup() {
   if (refreshTimer) clearInterval(refreshTimer);
   const saved = listSessions();
+  const created: CreatedGame[] = listCreatedGames();
   app.innerHTML = `
     <div class="wrap">
       <h1>Standing Orders</h1>
@@ -59,6 +69,18 @@ function renderSetup() {
               <h2>Resume a game</h2>
               <ul class="session-list">
                 ${saved.map((s) => `<li><button data-game="${s.gameId}" class="resume-btn">${escapeHtml(s.playerName)} — ${escapeHtml(s.gameId)}</button></li>`).join('')}
+              </ul>
+            </section>`
+          : ''
+      }
+
+      ${
+        created.length > 0
+          ? `<section class="card">
+              <h2>Games you created</h2>
+              <p class="hint">Get back the invite links to send (or re-send) to friends.</p>
+              <ul class="session-list">
+                ${created.map((g) => `<li><button data-game="${g.gameId}" class="view-links-btn">${escapeHtml(g.gameName)} — ${g.players.length} players</button></li>`).join('')}
               </ul>
             </section>`
           : ''
@@ -108,6 +130,13 @@ function renderSetup() {
     });
   });
 
+  document.querySelectorAll<HTMLButtonElement>('.view-links-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const g = created.find((c) => c.gameId === btn.dataset.game);
+      if (g) renderCreatedGame({ gameId: g.gameId, players: g.players }, g.gameName);
+    });
+  });
+
   document.getElementById('save-api-base-btn')!.addEventListener('click', () => {
     const val = (document.getElementById('api-base') as HTMLInputElement).value.trim();
     if (val) api.setApiBaseUrl(val);
@@ -145,11 +174,14 @@ function renderSetup() {
 }
 
 function renderCreatedGame(result: api.CreateGameResponse, gameName: string) {
+  saveCreatedGame({ gameId: result.gameId, gameName, createdAt: Date.now(), players: result.players });
+
   const base = `${location.origin}${location.pathname}`;
   app.innerHTML = `
     <div class="wrap">
-      <h1>${escapeHtml(gameName)} is ready</h1>
-      <p>Send each player their own link below (Discord DM, whatever). Opening the link logs that player in on their device.</p>
+      <button id="back-to-setup-btn" class="link-back">← Back</button>
+      <h1>${escapeHtml(gameName)}</h1>
+      <p>Send each player their own link below (Discord DM, whatever). Opening the link logs that player in on their device. These links don't expire — come back here any time from "Games you created" on the home screen to grab them again.</p>
       <ul class="join-links">
         ${result.players
           .map(
@@ -161,6 +193,7 @@ function renderCreatedGame(result: api.CreateGameResponse, gameName: string) {
       </ul>
     </div>
   `;
+  document.getElementById('back-to-setup-btn')!.addEventListener('click', () => renderSetup());
   document.querySelectorAll<HTMLButtonElement>('.be-this-player').forEach((btn) => {
     btn.addEventListener('click', () => {
       saveSession({ gameId: result.gameId, token: btn.dataset.token!, playerName: btn.dataset.name!, gameName });
@@ -231,7 +264,13 @@ function renderGame() {
             <button id="apply-alert-btn">Apply alert level</button>
             <h3>Buildings</h3>
             <ul class="building-list">
-              ${mine.buildings.map((b) => `<li>${b.type} (lvl ${b.level}) — ${b.status}${b.status === 'building' ? ` (${b.build_progress_rounds_left} rounds left)` : ''}</li>`).join('')}
+              ${mine.buildings
+                .map(
+                  (b) =>
+                    `<li>${b.type} (lvl ${b.level}) — ${b.status}${b.status === 'building' ? ` (${b.build_progress_rounds_left} rounds left)` : ''}
+                     ${b.status !== 'active' ? `<button class="cancel-building-btn" data-id="${b.id}">Cancel</button>` : ''}</li>`
+                )
+                .join('')}
             </ul>
             <div class="building-buttons">
               ${['GuildHall', 'RoguesDen', 'WizardsTower', 'Temple', 'Market', 'Walls']
@@ -336,6 +375,14 @@ function wireKingdomControls(kingdomId: string) {
       await refresh();
     })
   );
+  document.querySelectorAll<HTMLButtonElement>('.cancel-building-btn').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      withErrorHandling(async () => {
+        await api.submitOrders(session!.gameId, session!.token, { cancelBuildingIds: [btn.dataset.id!] });
+        await refresh();
+      })
+    );
+  });
   document.querySelectorAll<HTMLButtonElement>('.queue-building-btn').forEach((btn) => {
     btn.addEventListener('click', () =>
       withErrorHandling(async () => {

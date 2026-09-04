@@ -112,6 +112,9 @@ export const repo = {
   async updateBuilding(db: D1Database, b: BuildingRow) {
     await run(db, `UPDATE buildings SET level=?, build_progress_rounds_left=?, status=? WHERE id=?`, b.level, b.build_progress_rounds_left, b.status, b.id);
   },
+  async cancelBuilding(db: D1Database, buildingId: string) {
+    await run(db, `DELETE FROM buildings WHERE id = ? AND status != 'active'`, buildingId);
+  },
 
   // --- workers -------------------------------------------------------------
   async insertWorker(db: D1Database, w: WorkerRow) {

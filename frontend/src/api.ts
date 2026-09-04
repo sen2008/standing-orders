@@ -118,6 +118,7 @@ export interface OrdersInput {
   postBounties?: { type: string; targetX: number; targetY: number; targetRef?: string | null; reward: number }[];
   cancelBountyIds?: string[];
   queueBuildings?: { type: string }[];
+  cancelBuildingIds?: string[];
 }
 
 export interface Tile {

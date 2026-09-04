@@ -5,8 +5,16 @@ export interface SavedSession {
   playerName: string;
 }
 
+export interface CreatedGame {
+  gameId: string;
+  gameName: string;
+  createdAt: number;
+  players: { name: string; token: string }[];
+}
+
 const KEY = 'so_sessions';
 const ACTIVE_KEY = 'so_active_game_id';
+const CREATED_KEY = 'so_created_games';
 
 export function listSessions(): SavedSession[] {
   try {
@@ -39,4 +47,21 @@ export function setActiveGameId(gameId: string) {
 
 export function clearActiveSession() {
   localStorage.removeItem(ACTIVE_KEY);
+}
+
+// Every player's invite link, kept on the creating browser so the person who
+// ran "Create a new game" can always get back to them to (re)send to
+// friends — the one-time reveal screen isn't the only place these live.
+export function saveCreatedGame(g: CreatedGame) {
+  const games = listCreatedGames().filter((x) => x.gameId !== g.gameId);
+  games.unshift(g);
+  localStorage.setItem(CREATED_KEY, JSON.stringify(games));
+}
+
+export function listCreatedGames(): CreatedGame[] {
+  try {
+    return JSON.parse(localStorage.getItem(CREATED_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
 }

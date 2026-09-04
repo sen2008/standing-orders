@@ -94,6 +94,20 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.link-back {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.link-back:hover {
+  color: var(--text);
+}
+
 .player-row {
   display: flex;
   gap: 0.5rem;
