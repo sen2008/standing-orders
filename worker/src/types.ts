@@ -124,6 +124,7 @@ export interface TileRow {
   resource_type: string | null;
   feature: 'ruin' | 'dungeon' | 'monster_camp' | 'dragon_lair' | null;
   feature_state: 'active' | 'cleared' | null;
+  feature_cleared_round: number | null;
 }
 
 export interface VisibilityRow {

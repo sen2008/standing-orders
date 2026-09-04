@@ -114,6 +114,7 @@ CREATE TABLE tiles (
   resource_type TEXT,
   feature TEXT,                                -- null | 'ruin' | 'dungeon' | 'monster_camp' | 'dragon_lair'
   feature_state TEXT,                          -- null | 'active' | 'cleared'
+  feature_cleared_round INTEGER,               -- round number a feature was cleared, for regen cooldown (§3)
   PRIMARY KEY (game_id, x, y)
 );
 
