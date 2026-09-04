@@ -166,6 +166,7 @@ export function resolveRoundPure(state: RoundState, rng: Rng, questSlain?: { dra
       tile_x: result.worker.tile_x,
       tile_y: result.worker.tile_y,
       xp: result.worker.xp,
+      level: result.worker.level,
       current_bounty_id: result.worker.current_bounty_id,
     };
   });
@@ -195,6 +196,7 @@ export function resolveRoundPure(state: RoundState, rng: Rng, questSlain?: { dra
     if (decision.action === 'claim') {
       const bounty = bountyById.get(decision.bountyId)!;
       bounty.status = 'Claimed';
+      bounty.claimed_by_worker_id = worker.id;
       events.push({ player_id: playerIdForKingdom(kingdomById.get(worker.kingdom_id)!), type: 'worker_claimed_bounty', message: `A ${worker.type.toLowerCase()} set out on a bounty.` });
       return { ...worker, state: 'Traveling', current_bounty_id: bounty.id };
     }
@@ -293,6 +295,12 @@ export function resolveRoundPure(state: RoundState, rng: Rng, questSlain?: { dra
     h.recovery_rounds_left = Math.max(0, h.recovery_rounds_left - 1);
     if (h.recovery_rounds_left === 0) {
       h.state = 'AtCapital';
+      h.hp = h.max_hp;
+      const kingdom = kingdomById.get(h.kingdom_id);
+      if (kingdom) {
+        h.tile_x = kingdom.capital_x;
+        h.tile_y = kingdom.capital_y;
+      }
       events.push({ player_id: playerIdForKingdom(kingdomById.get(h.kingdom_id)!), type: 'hero_recovered', message: `${h.name} has recovered and is ready to adventure again.` });
     }
   }

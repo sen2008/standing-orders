@@ -13,6 +13,7 @@ import {
   INJURY_DAMAGE_MIN,
   INJURY_DAMAGE_MAX,
   REST_CHANCE_AT_MIN_DILIGENCE,
+  XP_PER_LEVEL,
 } from './constants';
 import type { WorkerRow, BountyRow, WorkerType } from './types';
 import type { Rng } from './rng';
@@ -59,7 +60,7 @@ export function evaluateWorkerDecision(worker: WorkerRow, candidates: BountyCand
 }
 
 export interface TaskStepResult {
-  worker: Pick<WorkerRow, 'state' | 'hp' | 'tile_x' | 'tile_y' | 'xp' | 'current_bounty_id'>;
+  worker: Pick<WorkerRow, 'state' | 'hp' | 'tile_x' | 'tile_y' | 'xp' | 'level' | 'current_bounty_id'>;
   bounty: Pick<BountyRow, 'status'>;
   goldToTreasury: number;
   event: { type: 'bounty_completed' | 'worker_died' } | null;
@@ -85,6 +86,7 @@ export function resolveTaskStep(
         tile_x: next.x,
         tile_y: next.y,
         xp: worker.xp,
+        level: worker.level,
         current_bounty_id: worker.current_bounty_id,
       },
       bounty: { status: bounty.status },
@@ -100,13 +102,15 @@ export function resolveTaskStep(
   successChance = clamp(successChance, 0.05, 0.98);
 
   if (rng() < successChance) {
+    const xp = worker.xp + 20;
     return {
       worker: {
         state: 'Traveling', // heading home
         hp: worker.hp,
         tile_x: worker.tile_x,
         tile_y: worker.tile_y,
-        xp: worker.xp + 20,
+        xp,
+        level: Math.floor(xp / XP_PER_LEVEL) + 1,
         current_bounty_id: null,
       },
       bounty: { status: 'Completed' },
@@ -119,14 +123,14 @@ export function resolveTaskStep(
   const hp = worker.hp - damage;
   if (hp <= 0) {
     return {
-      worker: { state: 'Dead', hp: 0, tile_x: worker.tile_x, tile_y: worker.tile_y, xp: worker.xp, current_bounty_id: null },
+      worker: { state: 'Dead', hp: 0, tile_x: worker.tile_x, tile_y: worker.tile_y, xp: worker.xp, level: worker.level, current_bounty_id: null },
       bounty: { status: 'Open' },
       goldToTreasury: 0,
       event: { type: 'worker_died' },
     };
   }
   return {
-    worker: { state: 'Traveling', hp, tile_x: worker.tile_x, tile_y: worker.tile_y, xp: worker.xp, current_bounty_id: null },
+    worker: { state: 'Traveling', hp, tile_x: worker.tile_x, tile_y: worker.tile_y, xp: worker.xp, level: worker.level, current_bounty_id: null },
     bounty: { status: 'Open' },
     goldToTreasury: 0,
     event: null,

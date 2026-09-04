@@ -151,6 +151,20 @@ describe('resolveTaskStep', () => {
     expect(sawDeath).toBe(true);
   });
 
+  it('a successful task grants xp and levels the worker up once enough xp accrues (100 xp/level, §15)', () => {
+    // level/xp must stay internally consistent (level = floor(xp/100)+1), as it is for
+    // every real worker (spawned at xp 0, level 1, and only ever gaining xp) — 90 -> 110 crosses into level 2.
+    const worker = makeWorker({ state: 'OnTask', level: 1, xp: 90, type: 'Warrior' });
+    const bounty = makeBounty({ reward: 10 });
+    let result = resolveTaskStep(worker, bounty, 1, 1, false, mulberry32(1));
+    for (let seed = 1; seed < 50 && result.bounty.status !== 'Completed'; seed++) {
+      result = resolveTaskStep(worker, bounty, 1, 1, false, mulberry32(seed));
+    }
+    expect(result.bounty.status).toBe('Completed');
+    expect(result.worker.xp).toBe(110);
+    expect(result.worker.level).toBe(2);
+  });
+
   it('morale modifier and aura both shift success chance in the expected direction', () => {
     // Same danger/power, only morale differs — lower morale should never produce
     // more successes than full morale across an identical batch of seeds.
