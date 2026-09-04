@@ -5,9 +5,13 @@ compatibility_date = "2024-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "standing-orders"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "7f6a979d-5c7f-49b0-8eba-bd1ecf5d75a4"
 
 [triggers]
 crons = ["0 * * * *"]  # hourly backstop: force-resolve any game past its round deadline (DESIGN.md §13)
+
+[[routes]]
+pattern = "api.standingorders.lucaswalker.net"
+custom_domain = true
 
 # Set with: wrangler secret put DISCORD_DEFAULT_WEBHOOK (optional shared fallback webhook)

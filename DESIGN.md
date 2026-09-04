@@ -363,6 +363,8 @@ threats (
 
 All auth is possession-of-token (the secret link) — no accounts, no passwords. Fine for a friend group; don't build more than this for v1.
 
+**Site-wide creation gate (additive, not a redesign):** `POST /games` also checks a shared passphrase (an `X-Site-Password` header against a `SITE_PASSWORD` Worker secret) before anything else, purely to stop random internet traffic from spamming game creation on a public Worker URL. It sits in front of the per-player model above, doesn't replace it, and every other route is unaffected — once a game exists, access to it is still solely the secret link.
+
 ---
 
 ## 13. Architecture & Stack

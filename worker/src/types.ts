@@ -158,4 +158,6 @@ export interface ThreatRow {
 export interface Env {
   DB: D1Database;
   DISCORD_DEFAULT_WEBHOOK?: string;
+  /** Site-wide creation gate (not per-player auth — see DESIGN.md §12). Set via `wrangler secret put SITE_PASSWORD`. */
+  SITE_PASSWORD?: string;
 }

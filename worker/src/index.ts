@@ -17,7 +17,16 @@ function tokenFrom(c: { req: { query: (k: string) => string | undefined } }): st
   return c.req.query('token');
 }
 
+// Site-wide gate on game creation only — separate from, and layered in front of, the
+// per-player secret-link auth (§12) used by every other route. Keeps randos off the
+// Worker without touching the token-per-player model. Configure with
+// `wrangler secret put SITE_PASSWORD` (or a `.dev.vars` entry for local dev).
 app.post('/games', async (c) => {
+  const expected = c.env.SITE_PASSWORD;
+  if (!expected) return c.json({ error: 'SITE_PASSWORD is not configured on this Worker' }, 500);
+  const provided = c.req.header('X-Site-Password');
+  if (provided !== expected) return c.json({ error: 'invalid site password' }, 401);
+
   const body = await c.req.json().catch(() => null);
   if (!body) return c.json({ error: 'invalid JSON body' }, 400);
   try {
