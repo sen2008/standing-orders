@@ -1,7 +1,9 @@
 // Thin fetch wrapper around the Worker API — DESIGN.md §12. No game logic
 // lives here; this file only shapes requests/responses.
 
-const DEFAULT_BASE_URL = 'http://localhost:8787';
+// Production default — override via the "API server" field for local dev
+// (that field writes to localStorage, so it's per-browser, not baked into the build).
+const DEFAULT_BASE_URL = 'https://api.standingorders.lucaswalker.net';
 
 export function apiBaseUrl(): string {
   return localStorage.getItem('so_api_base_url') || DEFAULT_BASE_URL;
